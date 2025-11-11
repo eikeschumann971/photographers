@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Client</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #4CAF50;
+        }
+
+        #cameras-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .camera-card {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .camera-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .camera-name {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .camera-status {
+            font-size: 12px;
+            color: #4CAF50;
+        }
+
+        .preview-container {
+            position: relative;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 15px;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .preview-image {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .preview-placeholder {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-preview {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn-preview:hover {
+            background: #1976D2;
+        }
+
+        .btn-preview.active {
+            background: #ff9800;
+        }
+
+        .btn-capture {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-capture:hover {
+            background: #45a049;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status-message {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-size: 16px;
+        }
+
+        .photo-notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 16px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            animation: slideIn 0.3s ease-out;
+            z-index: 1000;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .photo-notification.hide {
+            animation: slideOut 0.3s ease-out forwards;
+        }
+
+        @keyframes slideOut {
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>📷 Camera Client</h1>
+    <div id="cameras-container">
+        <div class="status-message">Searching for cameras...</div>
+    </div>
+
+    <script>
+        const { invoke } = window.__TAURI__.tauri;
+        const { listen } = window.__TAURI__.event;
+
+        const cameras = new Map();
+        const previewStates = new Map();
+
+        function createCameraCard(cameraInfo) {
+            const card = document.createElement('div');
+            card.className = 'camera-card';
+            card.id = `camera-${cameraInfo.ip}`;
+            
+            card.innerHTML = `
+                <div class="camera-header">
+                    <div class="camera-name">${cameraInfo.name}</div>
+                    <div class="camera-status">● Connected</div>
+                </div>
+                <div class="preview-container">
+                    <div class="preview-placeholder">Preview not started</div>
+                    <img class="preview-image" style="display: none;" />
+                </div>
+                <div class="controls">
+                    <button class="btn-preview" onclick="togglePreview('${cameraInfo.ip}')">
+                        Start Preview
+                    </button>
+                    <button class="btn-capture" onclick="capturePhoto('${cameraInfo.ip}')">
+                        Capture Photo
+                    </button>
+                </div>
+            `;
+            
+            return card;
+        }
+
+        async function togglePreview(cameraIp) {
+            const isActive = previewStates.get(cameraIp) || false;
+            const button = document.querySelector(`#camera-${cameraIp} .btn-preview`);
+            
+            try {
+                if (isActive) {
+                    await invoke('stop_preview', { cameraIp });
+                    button.textContent = 'Start Preview';
+                    button.classList.remove('active');
+                    previewStates.set(cameraIp, false);
+                    
+                    // Hide preview image
+                    const card = document.getElementById(`camera-${cameraIp}`);
+                    const img = card.querySelector('.preview-image');
+                    const placeholder = card.querySelector('.preview-placeholder');
+                    img.style.display = 'none';
+                    placeholder.style.display = 'block';
+                } else {
+                    await invoke('start_preview', { cameraIp });
+                    button.textContent = 'Stop Preview';
+                    button.classList.add('active');
+                    previewStates.set(cameraIp, true);
+                }
+            } catch (error) {
+                console.error('Failed to toggle preview:', error);
+            }
+        }
+
+        async function capturePhoto(cameraIp) {
+            try {
+                await invoke('capture_photo', { cameraIp });
+                console.log('Capture command sent');
+            } catch (error) {
+                console.error('Failed to capture photo:', error);
+            }
+        }
+
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.className = 'photo-notification';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.add('hide');
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        // Listen for camera discovery
+        listen('camera_discovered', (event) => {
+            const cameraInfo = event.payload;
+            console.log('Camera discovered:', cameraInfo);
+            
+            if (!cameras.has(cameraInfo.ip)) {
+                cameras.set(cameraInfo.ip, cameraInfo);
+                
+                const container = document.getElementById('cameras-container');
+                const statusMsg = container.querySelector('.status-message');
+                if (statusMsg) {
+                    statusMsg.remove();
+                }
+                
+                const card = createCameraCard(cameraInfo);
+                container.appendChild(card);
+            }
+        });
+
+        // Listen for preview frames
+        listen('preview_frame', (event) => {
+            const { camera_ip, frame_data } = event.payload;
+            const card = document.getElementById(`camera-${camera_ip}`);
+            
+            if (card) {
+                const img = card.querySelector('.preview-image');
+                const placeholder = card.querySelector('.preview-placeholder');
+                
+                img.src = `data:image/jpeg;base64,${frame_data}`;
+                img.style.display = 'block';
+                placeholder.style.display = 'none';
+            }
+        });
+
+        // Listen for photo saved events
+        listen('photo_saved', (event) => {
+            const { camera_ip, path } = event.payload;
+            console.log('Photo saved:', path);
+            showNotification(`Photo saved: ${path}`);
+        });
+    </script>
+</body>
+</html>

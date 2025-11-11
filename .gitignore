@@ -1,0 +1,33 @@
+# Android
+android-app/.gradle/
+android-app/.idea/
+android-app/local.properties
+android-app/build/
+android-app/app/build/
+android-app/captures/
+android-app/.externalNativeBuild/
+android-app/.cxx/
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+*.log
+
+# Rust/Tauri
+pc-client/src-tauri/target/
+pc-client/src-tauri/Cargo.lock
+pc-client/node_modules/
+pc-client/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.iml
